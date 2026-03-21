@@ -1,52 +1,113 @@
-<x-guest-layout>
-    <form method="POST" action="{{ route('register') }}">
-        @csrf
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register - Invoice System</title>
+@vite('resources/css/app.css')
+</head>
 
-        <!-- Name -->
-        <div>
-            <x-input-label for="name" :value="__('Name')" />
-            <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
-            <x-input-error :messages="$errors->get('name')" class="mt-2" />
-        </div>
+<body class="bg-gray-900">
 
-        <!-- Email Address -->
-        <div class="mt-4">
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
+<div class="min-h-screen flex items-center justify-center px-4">
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+<div class="w-full max-w-5xl grid md:grid-cols-2 bg-gray-800 rounded-xl shadow-lg overflow-hidden">
 
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="new-password" />
+<!-- LEFT SIDE -->
+<div class="p-10 text-white flex flex-col justify-center bg-gradient-to-b from-gray-800 to-gray-900">
 
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
+<h1 class="text-3xl font-bold mb-4">
+Buat Akun
+</h1>
 
-        <!-- Confirm Password -->
-        <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+<p class="text-gray-300 mb-6">
+Mulai gunakan sistem invoice untuk mengelola bisnis Anda secara profesional.
+</p>
 
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                            type="password"
-                            name="password_confirmation" required autocomplete="new-password" />
+<ul class="space-y-2 text-sm text-gray-400">
+<li>✔ Kelola Invoice</li>
+<li>✔ Laporan Piutang</li>
+<li>✔ Monitoring Omset</li>
+<li>✔ Kirim Laporan WhatsApp</li>
+</ul>
 
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-        </div>
+</div>
 
-        <div class="flex items-center justify-end mt-4">
-            <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('login') }}">
-                {{ __('Already registered?') }}
-            </a>
+<!-- RIGHT SIDE -->
+<div class="p-10 bg-white">
 
-            <x-primary-button class="ms-4">
-                {{ __('Register') }}
-            </x-primary-button>
-        </div>
-    </form>
-</x-guest-layout>
+<h2 class="text-2xl font-bold mb-6">
+Register
+</h2>
+
+<form method="POST" action="{{ route('register') }}">
+@csrf
+
+<!-- NAME -->
+<div class="mb-4">
+<label class="block mb-1">Nama</label>
+<input type="text" name="name"
+value="{{ old('name') }}"
+class="w-full border p-2 rounded"
+required>
+</div>
+
+<!-- EMAIL -->
+<div class="mb-4">
+<label class="block mb-1">Email</label>
+<input type="email" name="email"
+value="{{ old('email') }}"
+class="w-full border p-2 rounded"
+required>
+</div>
+
+<!-- PASSWORD -->
+<div class="mb-4">
+<label class="block mb-1">Password</label>
+<input type="password" name="password"
+class="w-full border p-2 rounded"
+required>
+</div>
+
+<!-- CONFIRM PASSWORD -->
+<div class="mb-4">
+<label class="block mb-1">Konfirmasi Password</label>
+<input type="password" name="password_confirmation"
+class="w-full border p-2 rounded"
+required>
+</div>
+
+<!-- ERROR VALIDATION -->
+@if($errors->any())
+<div class="mb-4 text-red-600 text-sm">
+<ul>
+@foreach($errors->all() as $error)
+<li>- {{ $error }}</li>
+@endforeach
+</ul>
+</div>
+@endif
+
+<!-- BUTTON -->
+<button class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
+Register
+</button>
+
+<!-- LOGIN LINK -->
+<p class="text-sm text-center mt-4">
+Sudah punya akun?
+<a href="{{ route('login') }}" class="text-blue-600 hover:underline">
+Login
+</a>
+</p>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+</body>
+</html>

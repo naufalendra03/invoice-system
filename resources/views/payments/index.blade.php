@@ -15,6 +15,7 @@ Pembayaran
 <th class="p-2">Invoice</th>
 <th class="p-2">Tanggal</th>
 <th class="p-2">Jumlah</th>
+<th>Aksi</th>
 
 </tr>
 
@@ -32,6 +33,17 @@ Pembayaran
 
 <td class="p-2">
 Rp {{ number_format($payment->amount) }}
+</td>
+
+<td>
+
+<a href="{{ route('payments.detail',$payment->sale_id) }}"
+class="bg-blue-500 text-white px-3 py-1 rounded">
+
+Detail
+
+</a>
+
 </td>
 
 </tr>

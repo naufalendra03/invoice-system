@@ -11,19 +11,18 @@ class ProductController extends Controller
 
 public function index(Request $request)
 {
+    $search = $request->search;
+    $perPage = $request->per_page ?? 10;
 
-$search = $request->search;
+    $products = \App\Models\Product::when($search, function($query) use ($search){
+        $query->where('name','like',"%$search%")
+              ->orWhere('unit','like',"%$search%");
+    })
+    ->latest()
+    ->paginate($perPage)
+    ->withQueryString();
 
-$products = Product::when($search,function($query) use ($search){
-
-$query->where('name','like','%'.$search.'%');
-
-})
-->latest()
-->paginate(10);
-
-return view('products.index',compact('products','search'));
-
+    return view('products.index', compact('products','search','perPage'));
 }
 
 
@@ -43,7 +42,6 @@ public function store(Request $request)
 $request->validate([
 'name'=>'required',
 'price'=>'required',
-'stock'=>'required'
 ]);
 
 Product::create($request->all());

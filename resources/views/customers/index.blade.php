@@ -115,12 +115,40 @@ Delete
 </table>
 
 
-<div class="mt-4">
+<!-- FOOTER -->
+<div class="flex justify-between items-center mt-4">
 
-{{ $customers->links() }}
+<!-- INFO -->
+<div class="text-sm text-gray-600">
+Showing {{ $customers->firstItem() ?? 0 }} to {{ $customers->lastItem() ?? 0 }} of {{ $customers->total() }} results
+</div>
+
+<!-- PER PAGE -->
+<form method="GET" class="flex items-center gap-2">
+
+<input type="hidden" name="search" value="{{ $search }}">
+
+<span class="text-sm">Per page</span>
+
+<select name="per_page"
+onchange="this.form.submit()"
+class="border rounded-lg px-4 py-2 w-28 focus:ring-2 focus:ring-blue-500">
+
+<option value="5" {{ $perPage == 5 ? 'selected' : '' }}>5</option>
+<option value="10" {{ $perPage == 10 ? 'selected' : '' }}>10</option>
+<option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
+<option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
+
+</select>
+
+</form>
 
 </div>
 
+<!-- PAGINATION -->
+<div class="mt-2">
+{{ $customers->links() }}
+</div>
 </div>
 
 </div>

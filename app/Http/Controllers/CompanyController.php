@@ -8,12 +8,21 @@ use Illuminate\Http\Request;
 class CompanyController extends Controller
 {
 
-public function index()
+public function index(Request $request)
 {
-    $companies = Company::latest()->get();
-    return view('companies.index', compact('companies'));
-}
+    $search = $request->search;
+    $perPage = $request->per_page ?? 10;
 
+    $companies = \App\Models\Company::when($search, function($query) use ($search){
+        $query->where('name','like',"%$search%")
+              ->orWhere('code','like',"%$search%");
+    })
+    ->latest()
+    ->paginate($perPage)
+    ->withQueryString();
+
+    return view('companies.index', compact('companies','search','perPage'));
+}
 
 public function create()
 {
@@ -43,12 +52,25 @@ public function edit($id)
 }
 
 
-public function update(Request $request,$id)
+public function update(Request $request, $id)
 {
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'code' => 'required|string|max:50',
+        'address' => 'nullable|string',
+        'phone' => 'nullable|string',
+        'rekening' => 'nullable|string', // ✅ boleh kosong
+    ]);
 
     $company = Company::findOrFail($id);
 
-    $company->update($request->all());
+    $company->update([
+        'name' => $request->name,
+        'code' => $request->code,
+        'address' => $request->address,
+        'phone' => $request->phone,
+        'rekening' => $request->rekening,
+    ]);
 
     return redirect()->route('companies.index')
         ->with('success','Company berhasil diupdate');

@@ -67,12 +67,6 @@ Invoice
 
 </a>
 
-<a href="{{ route('payments.index') }}"
-class="block px-4 py-2 rounded hover:bg-gray-700">
-
-Payments
-
-</a>
 
 <a href="{{ route('reports.piutang') }}"
 class="block px-4 py-2 hover:bg-gray-700">
@@ -85,6 +79,16 @@ class="block px-4 py-2 hover:bg-gray-700">
 
 Dashboard Piutang
 
+</a>
+
+<div class="text-gray-400 text-sm mt-4 mb-2">
+SYSTEM
+</div>
+
+<a href="{{ route('system.backup.page') }}"
+class="block px-4 py-2 rounded hover:bg-gray-700
+{{ request()->routeIs('system.*') ? 'bg-gray-700' : '' }}">
+Backup Sistem
 </a>
 </nav>
 

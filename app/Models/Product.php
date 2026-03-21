@@ -12,7 +12,6 @@ class Product extends Model
         'name',
         'unit',
         'price',
-        'stock'
     ];
 
     public function company()

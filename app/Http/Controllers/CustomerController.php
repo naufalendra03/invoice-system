@@ -10,21 +10,19 @@ class CustomerController extends Controller
 
 public function index(Request $request)
 {
+    $search = $request->search;
+    $perPage = $request->per_page ?? 10;
 
-$search = $request->search;
+    $customers = \App\Models\Customer::when($search, function($query) use ($search){
+        $query->where('name','like',"%$search%")
+              ->orWhere('phone','like',"%$search%");
+    })
+    ->latest()
+    ->paginate($perPage)
+    ->withQueryString();
 
-$customers = Customer::when($search,function($query) use ($search){
-
-$query->where('name','like','%'.$search.'%');
-
-})
-->latest()
-->paginate(10);
-
-return view('customers.index',compact('customers','search'));
-
+    return view('customers.index', compact('customers','search','perPage'));
 }
-
 
 public function create()
 {

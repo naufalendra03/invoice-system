@@ -12,7 +12,7 @@ protected $fillable = [
 'sale_id',
 'payment_date',
 'amount',
-'note'
+'notes'
 
 ];
 

@@ -15,17 +15,6 @@ class PaymentController extends Controller
 |--------------------------------------------------------------------------
 */
 
-public function index()
-{
-
-$payments = Payment::with('sale.customer')
-->latest()
-->paginate(10);
-
-return view('payments.index',compact('payments'));
-
-}
-
 
 
 /*
@@ -37,17 +26,37 @@ return view('payments.index',compact('payments'));
 public function create($id)
 {
 
-$sale = Sale::with('customer','payments')->findOrFail($id);
+    $sale = Sale::with('customer','payments')->findOrFail($id);
+
+    $paid = $sale->payments->sum('amount');
+
+    $remaining = $sale->total - $paid;
+
+    return view('payments.create',compact('sale','paid','remaining'));
+
+}
+
+public function detail($id)
+{
+
+$sale = \App\Models\Sale::with([
+'customer',
+'company',
+'items.product',
+'payments'
+])->findOrFail($id);
 
 $paid = $sale->payments->sum('amount');
 
 $remaining = $sale->total - $paid;
 
-return view('payments.create',compact('sale','paid','remaining'));
+return view('payments.detail',compact(
+'sale',
+'paid',
+'remaining'
+));
 
 }
-
-
 
 /*
 |--------------------------------------------------------------------------
@@ -58,72 +67,69 @@ return view('payments.create',compact('sale','paid','remaining'));
 public function store(Request $request,$id)
 {
 
-$request->validate([
+    $request->validate([
 
-'amount' => 'required|numeric|min:1',
-'method' => 'nullable|string',
-'notes'  => 'nullable|string'
+        'amount' => 'required|numeric|min:1',
+        'method' => 'nullable|string',
+        'notes'  => 'nullable|string'
 
-]);
-
-
-$sale = Sale::with('payments')->findOrFail($id);
+    ]);
 
 
-/*
-|--------------------------------------------------------------------------
-| SIMPAN PAYMENT
-|--------------------------------------------------------------------------
-*/
-
-Payment::create([
-
-'sale_id'      => $sale->id,
-'payment_date' => now(),
-'amount'       => $request->amount,
-'method'       => $request->method,
-'notes'        => $request->notes
-
-]);
+    $sale = Sale::with('payments')->findOrFail($id);
 
 
-/*
-|--------------------------------------------------------------------------
-| HITUNG TOTAL PEMBAYARAN
-|--------------------------------------------------------------------------
-*/
+    /*
+    |--------------------------------------------------------------------------
+    | SIMPAN PAYMENT
+    |--------------------------------------------------------------------------
+    */
 
-$totalPaid = $sale->payments()->sum('amount') + $request->amount;
+    Payment::create([
 
-$remaining = $sale->total - $totalPaid;
+        'sale_id'      => $sale->id,
+        'payment_date' => now(),
+        'amount'       => $request->amount,
+        'method'       => $request->method,
+        'notes'        => $request->notes
 
-
-/*
-|--------------------------------------------------------------------------
-| UPDATE STATUS INVOICE
-|--------------------------------------------------------------------------
-*/
-
-if($remaining <= 0){
-
-$sale->status = 'paid';
-
-}elseif($totalPaid > 0){
-
-$sale->status = 'partial';
-
-}else{
-
-$sale->status = 'unpaid';
-
-}
-
-$sale->save();
+    ]);
 
 
-return redirect()
-->route('sales.index')
-->with('success','Pembayaran berhasil disimpan');
+    /*
+    |--------------------------------------------------------------------------
+    | HITUNG TOTAL PEMBAYARAN TERBARU
+    |--------------------------------------------------------------------------
+    */
+
+    $totalPaid = $sale->payments()->sum('amount');
+
+    $remaining = $sale->total - $totalPaid;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE STATUS INVOICE
+    |--------------------------------------------------------------------------
+    */
+
+    if($totalPaid >= $sale->total){
+
+        $sale->status = 'paid';
+
+    }else{
+
+        $sale->status = 'partial';
+
+    }
+
+    $sale->save();
+
+
+    return redirect()
+    ->route('sales.index')
+    ->with('success','Pembayaran berhasil disimpan');
+
 
 }
 

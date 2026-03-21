@@ -11,19 +11,19 @@ use App\Models\Payment;
 class Sale extends Model
 {
 
-    protected $fillable = [
+protected $fillable = [
 
-        'company_id',
-        'customer_id',
-        'invoice_number',
-        'surat_jalan_number',
-        'date',
-        'due_date',
-        'total',
-        'status'
+    'company_id',
+    'customer_id',
+    'invoice_number',
+    'surat_jalan_number',
+    'po_number',
+    'date',
+    'due_date',
+    'total',
+    'status'
 
-    ];
-
+];
 
     public function customer()
     {

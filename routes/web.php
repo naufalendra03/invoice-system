@@ -1,18 +1,19 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\SaleController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
-
+use App\Http\Controllers\SaleController;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
-
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 
@@ -108,7 +109,11 @@ Route::get('/dashboard', function () {
 })->middleware(['auth','verified'])->name('dashboard');
 
 
+Route::get('/invoice/{id}', [App\Http\Controllers\SaleController::class,'publicInvoice'])
+->name('invoice.public');
 
+Route::get('/invoice/{id}/pdf', [SaleController::class,'printInvoice'])
+->name('invoice.pdf');
 /*
 |--------------------------------------------------------------------------
 | AUTH REQUIRED
@@ -146,7 +151,6 @@ Route::middleware('auth')->group(function () {
     */
 
     Route::resource('sales', SaleController::class);
-    Route::resource('payments', PaymentController::class);
 
     // Print invoice + surat jalan
     Route::get('/sales/{id}/print',[SaleController::class,'print'])
@@ -172,7 +176,52 @@ Route::middleware('auth')->group(function () {
     Route::get('/reports/dashboard-piutang',[ReportController::class,'dashboardPiutang'])
         ->name('reports.dashboard.piutang');
 
-});
+    Route::get('/sales/{id}/print-invoice',[SaleController::class,'printInvoice'])
+        ->name('sales.print.invoice');
 
+    Route::get('/sales/{id}/print-surat-jalan',[SaleController::class,'printSuratJalan'])
+        ->name('sales.print.surat.jalan');
+
+    Route::get('/payments/{id}/detail',[PaymentController::class,'detail'])
+        ->name('payments.detail');
+
+    Route::get('/reports/piutang/{id}',[ReportController::class,'detailPiutang'])
+        ->name('reports.piutang.detail');   
+        
+    Route::get('/sales/{id}/detail',[SaleController::class,'detail'])
+        ->name('sales.detail');
+
+     Route::get('/sales/{id}/send-wa',[SaleController::class,'sendWhatsapp'])
+        ->name('sales.send.wa');
+
+    Route::post('/reports/send-omset',[ReportController::class,'sendOmsetWhatsapp'])
+        ->name('reports.send.omset');
+
+    /*
+|--------------------------------------------------------------------------
+| BACKUP SYSTEM
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/system/backup-page', function () {
+    return view('system.backup');
+})->name('system.backup.page');
+
+Route::get('/system/backup',[BackupController::class,'download'])
+    ->name('system.backup');
+
+Route::post('/system/restore',[BackupController::class,'restore'])
+    ->name('system.restore');
+});
+Route::post('/logout', function (Request $request) {
+
+    Auth::logout();
+
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return redirect('/login'); // ✅ FIX DI SINI
+
+})->name('logout');
 
 require __DIR__.'/auth.php';

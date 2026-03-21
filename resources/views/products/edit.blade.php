@@ -49,16 +49,6 @@ class="w-full border p-2 rounded">
 
 </div>
 
-<div class="mb-4">
-
-<label>Stok</label>
-
-<input type="number"
-name="stock"
-value="{{ $product->stock }}"
-class="w-full border p-2 rounded">
-
-</div>
 
 <button class="bg-blue-600 text-white px-4 py-2 rounded">
 
