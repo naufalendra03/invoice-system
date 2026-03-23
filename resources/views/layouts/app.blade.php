@@ -77,7 +77,7 @@ Laporan Piutang
 <a href="{{ route('reports.dashboard.piutang') }}"
 class="block px-4 py-2 hover:bg-gray-700">
 
-Dashboard Piutang
+Dashboard Omset
 
 </a>
 
@@ -106,15 +106,15 @@ Backup Sistem
 Dashboard
 </div>
 
-<div>
+<div class="flex items-center gap-4">
+
+<a href="{{ route('profile.edit') }}" class="text-blue-600">
+Profile
+</a>
 
 <form method="POST" action="{{ route('logout') }}">
 @csrf
-
-<button class="text-red-500">
-Logout
-</button>
-
+<button class="text-red-500">Logout</button>
 </form>
 
 </div>

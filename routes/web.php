@@ -24,7 +24,10 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    if (auth()->check()) {
+        return redirect('/dashboard');
+    }
+    return redirect('/login');
 });
 
 
@@ -223,5 +226,6 @@ Route::post('/logout', function (Request $request) {
     return redirect('/login'); // ✅ FIX DI SINI
 
 })->name('logout');
+
 
 require __DIR__.'/auth.php';

@@ -149,7 +149,7 @@ Kepada : <br>
 </td>
 
 <td class="text-right">
-{{ number_format($item->price) }} /KG
+{{ number_format($item->price) }}
 </td>
 
 <td class="text-right">

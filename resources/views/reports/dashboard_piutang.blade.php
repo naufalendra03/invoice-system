@@ -3,7 +3,7 @@
 <div class="max-w-7xl mx-auto py-10">
 
 <h2 class="text-xl font-bold mb-6">
-Dashboard Piutang
+Dashboard Omset
 </h2>
 
 <!-- FILTER PERIODE -->

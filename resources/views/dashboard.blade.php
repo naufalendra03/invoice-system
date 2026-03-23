@@ -9,16 +9,19 @@
 
 <div class="flex justify-end mb-4">
 
-<div class="relative cursor-pointer" onclick="showNotification()">
+<div class="relative cursor-pointer" onclick="toggleNotif()">
 
 <span class="text-2xl">🔔</span>
 
-@if($dueSoon->count() > 0)
+@php
+$totalNotif = $overdues->count() + $dueSoon->count();
+@endphp
 
-<span class="absolute -top-2 -right-3 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-{{ $dueSoon->count() }}
+@if($totalNotif > 0)
+<span id="notifBadge"
+class="absolute -top-2 -right-3 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+{{ $totalNotif }}
 </span>
-
 @endif
 
 </div>
@@ -353,111 +356,72 @@ Tidak ada hutang jatuh tempo
 <!-- ============================= -->
 <!-- POPUP NOTIFICATION -->
 <!-- ============================= -->
-@if($overdues->count() > 0)
+@if($overdues->count() || $dueSoon->count())
 
-<div id="overduePopup"
-
-style="
-display:none;
+<div id="notifPopup" style="
 position:fixed;
 top:80px;
 right:20px;
-background:white;
-border-left:6px solid red;
-box-shadow:0 8px 20px rgba(0,0,0,0.2);
-padding:20px;
 width:320px;
-border-radius:8px;
+background:white;
+border-radius:10px;
+box-shadow:0 10px 25px rgba(0,0,0,0.2);
+padding:15px;
 z-index:9999;
+display:none;
 ">
 
-<div style="display:flex;justify-content:space-between">
-
-<b style="color:red">🚨 Invoice Jatuh Tempo</b>
-
-<button onclick="closeOverdue()" style="border:none;background:none;font-size:18px">
-✕
-</button>
-
+<!-- HEADER -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+<b>🔔 Notifikasi Invoice</b>
+<button onclick="closeNotif()" style="border:none;background:none;font-size:18px">✕</button>
 </div>
 
-<hr>
+<!-- CONTENT -->
+<div style="max-height:300px;overflow:auto">
 
-@foreach($overdues as $sale)
+{{-- 🔴 OVERDUE --}}
+@foreach($overdues->take(3) as $sale)
 
-<div style="margin-bottom:10px">
-
+<div style="
+border-left:5px solid red;
+background:#fff5f5;
+padding:10px;
+margin-bottom:10px;
+border-radius:6px;
+">
 <b style="color:red">{{ $sale->invoice_number }}</b><br>
-
-{{ $sale->customer->name }}<br>
-
-Jatuh tempo :
-<b>{{ \Carbon\Carbon::parse($sale->due_date)->format('d M Y') }}</b>
-
-<br>
-
-<a href="{{ route('sales.detail',$sale->id) }}" class="text-blue-600 text-sm">
-Lihat Detail
-</a>
-
+<small>{{ $sale->customer->name }}</small><br>
+<small>Jatuh tempo: <b>{{ \Carbon\Carbon::parse($sale->due_date)->format('d M Y') }}</b></small>
 </div>
 
 @endforeach
 
-</div>
+{{-- 🟡 DUE SOON --}}
+@foreach($dueSoon->take(2) as $sale)
 
-@endif
-
-@if($dueSoon->count() > 0)
-
-<div id="notificationPopup"
-
-style="
-display:none;
-position:fixed;
-top:80px;
-right:20px;
-background:white;
-border-left:6px solid orange;
-box-shadow:0 8px 20px rgba(0,0,0,0.2);
-padding:20px;
-width:320px;
-border-radius:8px;
-z-index:9999;
+<div style="
+border-left:5px solid orange;
+background:#fffaf0;
+padding:10px;
+margin-bottom:10px;
+border-radius:6px;
 ">
-
-<div style="display:flex;justify-content:space-between">
-
-<b>⚠️ Invoice Mendekati Jatuh Tempo</b>
-
-<button onclick="closeNotification()" style="border:none;background:none;font-size:18px">
-✕
-</button>
-
-</div>
-
-<hr>
-
-@foreach($dueSoon as $sale)
-
-<div style="margin-bottom:10px">
-
 <b>{{ $sale->invoice_number }}</b><br>
-
-{{ $sale->customer->name }}<br>
-
-Jatuh tempo :
-<b>{{ \Carbon\Carbon::parse($sale->due_date)->format('d M Y') }}</b>
-
-<br>
-
-<a href="{{ route('sales.detail',$sale->id) }}" class="text-blue-600 text-sm">
-Lihat Detail
-</a>
-
+<small>{{ $sale->customer->name }}</small><br>
+<small>Jatuh tempo: <b>{{ \Carbon\Carbon::parse($sale->due_date)->format('d M Y') }}</b></small>
 </div>
 
 @endforeach
+
+</div>
+
+<!-- FOOTER -->
+<div style="text-align:right;margin-top:10px;">
+<a href="{{ route('reports.piutang') }}" style="font-size:12px;color:blue;">
+Lihat semua →
+</a>
+</div>
 
 </div>
 
@@ -506,68 +470,79 @@ beginAtZero: true
 
 <script>
 
-function showNotification(){
+let notifVisible = false;
+let notifTimer = null;
 
-let overdue = document.getElementById("overduePopup");
-let soon = document.getElementById("notificationPopup");
+function toggleNotif(){
+let popup = document.getElementById("notifPopup");
 
-// PRIORITAS: OVERDUE DULU
-if(overdue){
-overdue.style.display = "block";
+if(!popup) return;
 
-setTimeout(()=>{
-overdue.style.display = "none";
+notifVisible = !notifVisible;
 
-// setelah overdue hilang → tampilkan dueSoon
-if(soon){
-soon.style.display = "block";
+popup.style.display = notifVisible ? "block" : "none";
 
-setTimeout(()=>{
-soon.style.display = "none";
-},8000);
+// kalau dibuka → play sound + set timer
+if(notifVisible){
+playNotifSound();
+startAutoHide();
+}else{
+clearTimeout(notifTimer);
+}
 }
 
-},8000);
-
-}else if(soon){
-
-soon.style.display = "block";
-
-setTimeout(()=>{
-soon.style.display = "none";
-},8000);
-
+function closeNotif(){
+let popup = document.getElementById("notifPopup");
+if(popup){
+popup.style.display = "none";
+notifVisible = false;
+clearTimeout(notifTimer);
+}
 }
 
+function playNotifSound(){
+let sound = document.getElementById("notifSound");
+
+if(sound){
+sound.currentTime = 0;
+sound.play().catch(()=>{});
+}
+}
+
+// ✅ AUTO HIDE FUNCTION
+function startAutoHide(){
+clearTimeout(notifTimer);
+
+notifTimer = setTimeout(()=>{
+let popup = document.getElementById("notifPopup");
+if(popup){
+popup.style.display = "none";
+notifVisible = false;
+}
+},8000); // 8 detik
 }
 
 
-function closeOverdue(){
-let el = document.getElementById("overduePopup");
-if(el) el.style.display="none";
-}
-
-function closeNotification(){
-let el = document.getElementById("notificationPopup");
-if(el) el.style.display="none";
-}
-
-
-// AUTO SHOW SAAT LOAD
+// ✅ AUTO SHOW SAAT LOGIN
 document.addEventListener("DOMContentLoaded", function(){
 
-showNotification();
+let popup = document.getElementById("notifPopup");
 
-// 🔊 SOUND KHUSUS OVERDUE
-let overdue = document.getElementById("overduePopup");
+if(popup){
+popup.style.display = "block";
+notifVisible = true;
 
-if(overdue){
-let audio = new Audio('https://www.soundjay.com/buttons/sounds/beep-07.mp3');
-audio.play().catch(()=>{});
+// jalankan auto hide
+startAutoHide();
 }
+
+// supaya audio bisa jalan
+document.addEventListener("click", function initSound(){
+playNotifSound();
+document.removeEventListener("click", initSound);
+});
 
 });
 
 </script>
-
 </x-app-layout>

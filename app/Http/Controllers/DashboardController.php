@@ -64,44 +64,44 @@ foreach($omzet as $row){
 
 /*
 |--------------------------------------------------------------------------
-| INVOICE OVERDUE (PRIORITAS 1)
+| OVERDUE (PRIORITAS 1)
 |--------------------------------------------------------------------------
 */
 
 $overdues = Sale::where('status','!=','paid')
     ->whereNotNull('due_date')
-    ->whereDate('due_date','<', now()->toDateString()) // ✅ FIX
+    ->whereDate('due_date','<', now()->toDateString())
     ->with('customer')
     ->orderBy('due_date','asc')
-    ->take(5)
     ->get();
 
 
 /*
 |--------------------------------------------------------------------------
-| NOTIF H-3 JATUH TEMPO (PRIORITAS 2)
+| HARI INI + H-3 (PRIORITAS 2)
 |--------------------------------------------------------------------------
 */
 
 $dueSoon = Sale::where('status','!=','paid')
     ->whereNotNull('due_date')
-    ->whereBetween('due_date', [
-        now()->startOfDay(),          // ✅ termasuk hari ini
-        now()->addDays(3)->endOfDay() // ✅ sampai H+3 full
-    ])
+    ->whereDate('due_date','>=', now()->toDateString())
+    ->whereDate('due_date','<=', now()->addDays(3)->toDateString())
     ->with('customer')
     ->orderBy('due_date','asc')
-    ->take(5)
     ->get();
 
 
 /*
 |--------------------------------------------------------------------------
-| GABUNG NOTIF (OVERDUE DI ATAS)
+| LIMIT NOTIF (BIAR RAPI)
 |--------------------------------------------------------------------------
 */
 
-$notifications = $overdues->concat($dueSoon);
+$notifications = $overdues
+    ->take(3) // 🔴 max 3 overdue
+    ->concat(
+        $dueSoon->take(2) // 🟡 max 2 upcoming
+    );
 
 
 /*
