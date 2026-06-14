@@ -88,7 +88,12 @@ Detail Barang
 
 <td class="p-3">{{ $loop->iteration }}</td>
 <td class="p-3">{{ $item->product->name }}</td>
-<td class="p-3">{{ $item->qty }}</td>
+<td class="p-3">
+@php
+$qty = rtrim(rtrim(number_format($item->qty, 3, ',', ''), '0'), ',');
+@endphp
+{{ $qty }}
+</td>
 <td class="p-3">Rp {{ number_format($item->price) }}</td>
 <td class="p-3 font-semibold">Rp {{ number_format($item->subtotal) }}</td>
 
@@ -111,7 +116,26 @@ Detail Barang
 Ringkasan Invoice
 </h3>
 
-<div class="grid grid-cols-3 gap-6 mb-8">
+@php
+$subtotalBarang = $sale->items->sum('subtotal');
+$ongkir = $sale->ongkir ?? 0;
+@endphp
+
+<div class="grid grid-cols-5 gap-6 mb-8">
+
+<div>
+<p class="text-gray-500">Subtotal Barang</p>
+<p class="font-bold">
+Rp {{ number_format($subtotalBarang) }}
+</p>
+</div>
+
+<div>
+<p class="text-gray-500">Ongkir</p>
+<p class="font-bold">
+Rp {{ number_format($ongkir) }}
+</p>
+</div>
 
 <div>
 <p class="text-gray-500">Total Invoice</p>
@@ -202,7 +226,16 @@ Belum ada pembayaran
 
 <div class="flex flex-wrap gap-3">
 
+<!-- ===================== -->
+<!-- ACTION JIKA BELUM LUNAS -->
+<!-- ===================== -->
+
 @if($sale->status != 'paid')
+
+<a href="{{ route('sales.edit',$sale->id) }}"
+class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
+Edit Invoice
+</a>
 
 <a href="{{ route('sales.payment',$sale->id) }}"
 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
@@ -210,6 +243,11 @@ Bayar
 </a>
 
 @endif
+
+
+<!-- ===================== -->
+<!-- ACTION UMUM -->
+<!-- ===================== -->
 
 <a href="{{ route('sales.print.invoice',$sale->id) }}"
 class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
@@ -219,11 +257,6 @@ Print Nota
 <a href="{{ route('sales.print.surat.jalan',$sale->id) }}"
 class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">
 Print Surat Jalan
-</a>
-
-<a href="{{ route('sales.send.wa',$sale->id) }}"
-class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded">
-Kirim WA
 </a>
 
 </div>

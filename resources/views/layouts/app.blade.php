@@ -25,11 +25,14 @@ Invoice System
 
 <nav class="flex-1 p-4 space-y-2">
 
+@php
+$activeClass = 'bg-blue-700 text-white';
+$normalClass = 'hover:bg-gray-700';
+@endphp
+
 <a href="/dashboard"
-class="block px-4 py-2 rounded hover:bg-gray-700">
-
+class="block px-4 py-2 rounded {{ request()->is('dashboard') ? $activeClass : $normalClass }}">
 Dashboard
-
 </a>
 
 <div class="text-gray-400 text-sm mt-4 mb-2">
@@ -37,23 +40,18 @@ MASTER DATA
 </div>
 
 <a href="{{ route('companies.index') }}"
-class="block px-4 py-2 rounded hover:bg-gray-700
-{{ request()->routeIs('companies.*') ? 'bg-gray-700' : '' }}">
+class="block px-4 py-2 rounded {{ request()->routeIs('companies.*') ? $activeClass : $normalClass }}">
 Companies
 </a>
 
 <a href="{{ route('customers.index') }}"
-class="block px-4 py-2 rounded hover:bg-gray-700">
-
+class="block px-4 py-2 rounded {{ request()->routeIs('customers.*') ? $activeClass : $normalClass }}">
 Customers
-
 </a>
 
 <a href="{{ route('products.index') }}"
-class="block px-4 py-2 rounded hover:bg-gray-700">
-
+class="block px-4 py-2 rounded {{ request()->routeIs('products.*') ? $activeClass : $normalClass }}">
 Products
-
 </a>
 
 <div class="text-gray-400 text-sm mt-4 mb-2">
@@ -61,24 +59,23 @@ TRANSAKSI
 </div>
 
 <a href="{{ route('sales.index') }}"
-class="block px-4 py-2 rounded hover:bg-gray-700">
-
+class="block px-4 py-2 rounded {{ request()->routeIs('sales.*') ? $activeClass : $normalClass }}">
 Invoice
-
 </a>
-
 
 <a href="{{ route('reports.piutang') }}"
-class="block px-4 py-2 hover:bg-gray-700">
-
+class="block px-4 py-2 rounded {{ request()->routeIs('reports.piutang') || request()->routeIs('reports.piutang.*') ? $activeClass : $normalClass }}">
 Laporan Piutang
-
 </a>
+
+<a href="{{ route('reports.kartu-piutang') }}"
+class="block px-4 py-2 rounded {{ request()->routeIs('reports.kartu-piutang') || request()->routeIs('reports.kartu-piutang.*') ? $activeClass : $normalClass }}">
+Kartu Piutang
+</a>
+
 <a href="{{ route('reports.dashboard.piutang') }}"
-class="block px-4 py-2 hover:bg-gray-700">
-
+class="block px-4 py-2 rounded {{ request()->routeIs('reports.dashboard.piutang') ? $activeClass : $normalClass }}">
 Dashboard Omset
-
 </a>
 
 <div class="text-gray-400 text-sm mt-4 mb-2">
@@ -86,10 +83,10 @@ SYSTEM
 </div>
 
 <a href="{{ route('system.backup.page') }}"
-class="block px-4 py-2 rounded hover:bg-gray-700
-{{ request()->routeIs('system.*') ? 'bg-gray-700' : '' }}">
+class="block px-4 py-2 rounded {{ request()->routeIs('system.*') ? $activeClass : $normalClass }}">
 Backup Sistem
 </a>
+
 </nav>
 
 </div>

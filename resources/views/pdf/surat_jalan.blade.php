@@ -138,7 +138,7 @@ Dengan ini kami kirimkan barang-barang tersebut di bawah ini :
 </td>
 
 <td class="text-center">
-{{ $item->qty }}
+{{ rtrim(rtrim(number_format($item->qty, 3, ',', ''), '0'), ',') }}
 </td>
 
 </tr>

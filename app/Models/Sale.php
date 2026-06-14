@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Company;
 use App\Models\SalesItem;
 use App\Models\Payment;
+use Carbon\Carbon;
 
 class Sale extends Model
 {
@@ -21,6 +22,7 @@ protected $fillable = [
     'date',
     'due_date',
     'total',
+    'ongkir',
     'status'
 
 ];
@@ -48,4 +50,17 @@ protected $fillable = [
         return $this->hasMany(Payment::class);
     }
 
+
+public function getEffectiveStatusAttribute()
+{
+    if (
+        $this->status != 'paid' &&
+        $this->due_date &&
+        Carbon::parse($this->due_date)->isPast()
+    ) {
+        return 'overdue';
+    }
+
+    return $this->status;
+}
 }

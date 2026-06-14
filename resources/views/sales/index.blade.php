@@ -19,20 +19,55 @@ class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">
 
 </div>
 
-<!-- SEARCH -->
-<form method="GET" class="mb-4 flex gap-2">
+<!-- FILTER -->
+<form method="GET" class="mb-4 flex flex-wrap gap-2 items-end">
 
 <input type="text"
 name="search"
-value="{{ $search }}"
+value="{{ request('search') }}"
 placeholder="Search invoice / customer / company..."
 class="border p-2 rounded w-72">
 
+<select name="status" class="border p-2 rounded">
+<option value="">Semua Status</option>
+<option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>PAID</option>
+<option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>PARTIAL</option>
+<option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>UNPAID</option>
+<option value="overdue" {{ request('status') == 'overdue' ? 'selected' : '' }}>OVERDUE</option>
+</select>
+
+<input type="date"
+name="date_from"
+value="{{ request('date_from') }}"
+class="border p-2 rounded">
+
+<input type="date"
+name="date_to"
+value="{{ request('date_to') }}"
+class="border p-2 rounded">
+
 <button class="bg-gray-800 text-white px-4 py-2 rounded">
-Search
+Filter
 </button>
 
+<a href="{{ route('sales.index') }}"
+class="bg-gray-300 px-4 py-2 rounded">
+Reset
+</a>
+
+
 </form>
+
+<!-- FILTER INFO -->
+@if(request()->anyFilled(['search','status','date_from','date_to']))
+<div class="mb-3 text-sm text-gray-500">
+Filter aktif:
+@if(request('search')) Search: "{{ request('search') }}" @endif
+@if(request('status')) | Status: {{ strtoupper(request('status')) }} @endif
+@if(request('date_from')) | Dari: {{ request('date_from') }} @endif
+@if(request('date_to')) | Sampai: {{ request('date_to') }} @endif
+</div>
+@endif
 
 <!-- TABLE -->
 <div class="overflow-x-auto">
@@ -41,6 +76,7 @@ Search
 
 <thead class="bg-gray-100">
 <tr>
+<th class="p-3 text-left">Tanggal</th>
 <th class="p-3 text-left">Invoice</th>
 <th class="p-3 text-left">Customer</th>
 <th class="p-3 text-left">Company</th>
@@ -56,6 +92,10 @@ Search
 @forelse($sales as $sale)
 
 <tr class="border-t hover:bg-gray-50">
+
+<td class="p-3 text-gray-500 text-sm">
+{{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d M Y') : '-' }}
+</td>
 
 <td class="p-3 font-semibold">
 {{ $sale->invoice_number ?? '-' }}
@@ -74,20 +114,15 @@ Rp {{ number_format($sale->total ?? 0) }}
 </td>
 
 <td class="p-3">
-
 @if($sale->status == 'paid')
 <span class="bg-green-100 text-green-700 px-2 py-1 rounded text-sm">PAID</span>
-
 @elseif($sale->status == 'partial')
 <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-sm">PARTIAL</span>
-
 @elseif($sale->status == 'overdue')
 <span class="bg-red-500 text-white px-2 py-1 rounded text-sm">OVERDUE</span>
-
 @else
 <span class="bg-gray-200 px-2 py-1 rounded text-sm">UNPAID</span>
 @endif
-
 </td>
 
 <td class="p-3">
@@ -106,7 +141,7 @@ Detail
 @empty
 
 <tr>
-<td colspan="7" class="p-6 text-center text-gray-500">
+<td colspan="8" class="p-6 text-center text-gray-500">
 Belum ada invoice
 </td>
 </tr>
@@ -119,18 +154,19 @@ Belum ada invoice
 
 </div>
 
-<!-- FOOTER (INFO + PER PAGE) -->
+<!-- FOOTER -->
 <div class="flex justify-between items-center mt-4">
 
-<!-- INFO -->
 <div class="text-sm text-gray-600">
-Showing {{ $sales->firstItem() }} to {{ $sales->lastItem() }} of {{ $sales->total() }} results
+Showing {{ $sales->firstItem() ?? 0 }} to {{ $sales->lastItem() ?? 0 }} of {{ $sales->total() }} results
 </div>
 
-<!-- PER PAGE -->
 <form method="GET" class="flex items-center gap-2">
 
-<input type="hidden" name="search" value="{{ $search }}">
+<input type="hidden" name="search" value="{{ request('search') }}">
+<input type="hidden" name="status" value="{{ request('status') }}">
+<input type="hidden" name="date_from" value="{{ request('date_from') }}">
+<input type="hidden" name="date_to" value="{{ request('date_to') }}">
 
 <span class="text-sm">Per page</span>
 
@@ -151,7 +187,7 @@ class="border rounded-lg px-4 py-2 w-28 focus:ring-2 focus:ring-blue-500">
 
 <!-- PAGINATION -->
 <div class="mt-2">
-{{ $sales->links() }}
+{{ $sales->withQueryString()->links() }}
 </div>
 
 </div>

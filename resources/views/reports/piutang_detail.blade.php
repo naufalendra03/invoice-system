@@ -91,7 +91,7 @@ Rp {{ number_format($item->subtotal) }}
 Ringkasan Piutang
 </h3>
 
-<div class="grid grid-cols-4 gap-6 mb-8">
+<div class="grid grid-cols-5 gap-6 mb-8">
 
 <div>
 <p class="text-gray-500">Total Invoice</p>
@@ -137,6 +137,24 @@ Hari Ini Jatuh Tempo
 
 @endif
 
+</div>
+
+<div>
+<p class="text-gray-500">Rata-rata Histori Bayar</p>
+
+@if($averageDayToPay !== null)
+<p class="text-blue-600 font-semibold">
+{{ $averageDayToPay }} Hari
+</p>
+@else
+<p class="text-gray-400 font-semibold">
+Belum ada data
+</p>
+@endif
+
+<p class="text-xs text-gray-400 mt-1">
+Berdasarkan histori pembayaran customer
+</p>
 </div>
 
 </div>

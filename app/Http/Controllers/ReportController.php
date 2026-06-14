@@ -7,51 +7,151 @@ use App\Models\Sale;
 use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use App\Exports\PiutangExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
 
 /*
 |--------------------------------------------------------------------------
-| LAPORAN PIUTANG
+| LAPORAN PIUTANG (FINAL)
 |--------------------------------------------------------------------------
 */
 
 public function piutang(Request $request)
 {
-    $search = $request->search;
-    $perPage = $request->per_page ?? 10;
+    $search   = $request->search;
+    $status   = $request->status;
+    $dateFrom = $request->date_from;
+    $dateTo   = $request->date_to;
+    $perPage  = $request->per_page ?? 10;
 
-    $sales = \App\Models\Sale::with(['customer','payments'])
-        ->when($search, function($query) use ($search){
-            $query->where('invoice_number','like',"%$search%")
-                  ->orWhereHas('customer', function($q) use ($search){
-                      $q->where('name','like',"%$search%");
-                  });
-        })
-        ->latest()
+    $query = Sale::with(['customer', 'payments'])
+        ->whereHas('payments', function ($q) {
+            // boleh kosong, hanya agar relasi siap
+        }, '>=', 0);
+
+    /*
+    | SEARCH
+    */
+    if ($search) {
+        $query->where(function ($q) use ($search) {
+            $q->where('invoice_number', 'like', "%{$search}%")
+                ->orWhere('surat_jalan_number', 'like', "%{$search}%")
+                ->orWhere('po_number', 'like', "%{$search}%")
+                ->orWhereHas('customer', function ($q2) use ($search) {
+                    $q2->where('name', 'like', "%{$search}%");
+                });
+        });
+    }
+
+    /*
+    | FILTER STATUS BERDASARKAN EFFECTIVE STATUS
+    */
+    if ($status) {
+
+        if ($status === 'overdue') {
+            $query->where('status', '!=', 'paid')
+                ->whereNotNull('due_date')
+                ->whereDate('due_date', '<', now()->toDateString());
+        }
+
+        elseif ($status === 'unpaid') {
+            $query->where('status', 'unpaid')
+                ->where(function ($q) {
+                    $q->whereNull('due_date')
+                      ->orWhereDate('due_date', '>=', now()->toDateString());
+                });
+        }
+
+        elseif ($status === 'partial') {
+            $query->where('status', 'partial')
+                ->where(function ($q) {
+                    $q->whereNull('due_date')
+                      ->orWhereDate('due_date', '>=', now()->toDateString());
+                });
+        }
+
+        elseif ($status === 'paid') {
+            $query->where('status', 'paid');
+        }
+    }
+
+    /*
+    | FILTER DATE
+    */
+    if ($dateFrom) {
+        $query->whereDate('date', '>=', $dateFrom);
+    }
+
+    if ($dateTo) {
+        $query->whereDate('date', '<=', $dateTo);
+    }
+
+    /*
+    | AMBIL HANYA PIUTANG:
+    | total pembayaran < total invoice
+    */
+    $query->whereRaw('
+        (
+            SELECT COALESCE(SUM(payments.amount), 0)
+            FROM payments
+            WHERE payments.sale_id = sales.id
+        ) < sales.total
+    ');
+/*
+|--------------------------------------------------------------------------
+| HITUNG RATA-RATA HARI PEMBAYARAN PER CUSTOMER
+|--------------------------------------------------------------------------
+*/
+
+$customerAverageDays = [];
+
+$allSalesForAverage = Sale::with(['payments'])
+    ->whereHas('payments')
+    ->get()
+    ->groupBy('customer_id');
+
+foreach ($allSalesForAverage as $customerId => $customerSales) {
+
+    $days = [];
+
+    foreach ($customerSales as $customerSale) {
+
+        $lastPayment = $customerSale->payments
+            ->sortByDesc('payment_date')
+            ->first();
+
+        if ($lastPayment && $customerSale->date) {
+
+            $days[] = \Carbon\Carbon::parse($customerSale->date)
+                ->diffInDays(\Carbon\Carbon::parse($lastPayment->payment_date));
+        }
+    }
+
+    $customerAverageDays[$customerId] = count($days)
+        ? round(array_sum($days) / count($days))
+        : null;
+}
+    /*
+    | PAGINATION BENAR
+    */
+    $sales = $query
+        ->latest('date')
         ->paginate($perPage)
         ->withQueryString();
 
-    // FILTER hanya yg masih punya hutang
-    $sales->getCollection()->transform(function($sale){
-        $paid = $sale->payments->sum('amount');
-        $remaining = $sale->total - $paid;
-
-        if($remaining <= 0){
-            return null;
-        }
-
-        return $sale;
-    });
-
-    $sales->setCollection(
-        $sales->getCollection()->filter()
-    );
-
-    return view('reports.piutang', compact('sales','search','perPage'));
+    return view('reports.piutang', compact(
+    'sales',
+    'search',
+    'status',
+    'dateFrom',
+    'dateTo',
+    'perPage',
+    'customerAverageDays'
+));
 }
-
 
 /*
 |--------------------------------------------------------------------------
@@ -166,44 +266,142 @@ return view('reports.dashboard_piutang',compact(
 
 public function detailPiutang($id)
 {
+    $sale = Sale::with([
+        'customer',
+        'company',
+        'items.product',
+        'payments'
+    ])->findOrFail($id);
 
-$sale = Sale::with([
-'customer',
-'company',
-'items.product',
-'payments'
-])->findOrFail($id);
+    $paid = $sale->payments->sum('amount');
+    $remaining = $sale->total - $paid;
 
+    /*
+    |--------------------------------------------------------------------------
+    | UMUR PIUTANG
+    |--------------------------------------------------------------------------
+    */
+    $aging = 0;
 
-$paid = $sale->payments->sum('amount');
-$remaining = $sale->total - $paid;
+    if ($sale->due_date) {
+        $aging = now()->startOfDay()->diffInDays($sale->due_date, false);
+    }
 
+    /*
+    |--------------------------------------------------------------------------
+    | AVERAGE DAY TO PAY CUSTOMER
+    |--------------------------------------------------------------------------
+    */
+    $customerSales = Sale::with('payments')
+        ->where('customer_id', $sale->customer_id)
+        ->whereHas('payments')
+        ->get();
 
-/*
-|--------------------------------------------------------------------------
-| UMUR PIUTANG
-|--------------------------------------------------------------------------
-*/
+    $days = [];
 
-$aging = 0;
+    foreach ($customerSales as $customerSale) {
+        $lastPayment = $customerSale->payments
+            ->sortByDesc('payment_date')
+            ->first();
 
-if ($sale->due_date) {
+        if ($lastPayment && $customerSale->date) {
+            $days[] = \Carbon\Carbon::parse($customerSale->date)
+                ->diffInDays(\Carbon\Carbon::parse($lastPayment->payment_date));
+        }
+    }
 
-$aging = now()->startOfDay()->diffInDays($sale->due_date,false);
+    $averageDayToPay = count($days)
+        ? round(array_sum($days) / count($days))
+        : null;
 
+    return view('reports.piutang_detail', compact(
+        'sale',
+        'paid',
+        'remaining',
+        'aging',
+        'averageDayToPay'
+    ));
 }
 
+public function export(Request $request)
+{
+    $query = Sale::with(['customer', 'payments']);
 
-return view('reports.piutang_detail',compact(
-'sale',
-'paid',
-'remaining',
-'aging'
-));
+    /*
+    | SEARCH
+    */
+    if ($request->search) {
+        $query->where(function ($q) use ($request) {
+            $q->where('invoice_number', 'like', '%' . $request->search . '%')
+                ->orWhere('surat_jalan_number', 'like', '%' . $request->search . '%')
+                ->orWhere('po_number', 'like', '%' . $request->search . '%')
+                ->orWhereHas('customer', function ($q2) use ($request) {
+                    $q2->where('name', 'like', '%' . $request->search . '%');
+                });
+        });
+    }
 
+    /*
+    | FILTER STATUS BERDASARKAN EFFECTIVE STATUS
+    */
+    if ($request->status) {
+
+        if ($request->status === 'overdue') {
+            $query->where('status', '!=', 'paid')
+                ->whereNotNull('due_date')
+                ->whereDate('due_date', '<', now()->toDateString());
+        }
+
+        elseif ($request->status === 'unpaid') {
+            $query->where('status', 'unpaid')
+                ->where(function ($q) {
+                    $q->whereNull('due_date')
+                      ->orWhereDate('due_date', '>=', now()->toDateString());
+                });
+        }
+
+        elseif ($request->status === 'partial') {
+            $query->where('status', 'partial')
+                ->where(function ($q) {
+                    $q->whereNull('due_date')
+                      ->orWhereDate('due_date', '>=', now()->toDateString());
+                });
+        }
+
+        elseif ($request->status === 'paid') {
+            $query->where('status', 'paid');
+        }
+    }
+
+    /*
+    | FILTER DATE
+    */
+    if ($request->date_from) {
+        $query->whereDate('date', '>=', $request->date_from);
+    }
+
+    if ($request->date_to) {
+        $query->whereDate('date', '<=', $request->date_to);
+    }
+
+    /*
+    | HANYA PIUTANG
+    */
+    $query->whereRaw('
+        (
+            SELECT COALESCE(SUM(payments.amount), 0)
+            FROM payments
+            WHERE payments.sale_id = sales.id
+        ) < sales.total
+    ');
+
+    $data = $query->latest('date')->get();
+
+    return Excel::download(
+        new PiutangExport($data),
+        'laporan-piutang.xlsx'
+    );
 }
-
-
 /*
 |--------------------------------------------------------------------------
 | KIRIM LAPORAN OMSET KE WHATSAPP

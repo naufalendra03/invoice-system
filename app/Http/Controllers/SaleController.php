@@ -24,43 +24,92 @@ LIST INVOICE
 public function index(Request $request)
 {
     $search = $request->search;
+    $status = $request->status;
+    $dateFrom = $request->date_from;
+    $dateTo = $request->date_to;
     $perPage = $request->per_page ?? 10;
 
-    $sales = \App\Models\Sale::with(['customer','company'])
-        ->when($search, function($query) use ($search){
-            $query->where('invoice_number','like',"%$search%")
-                  ->orWhereHas('customer', function($q) use ($search){
-                      $q->where('name','like',"%$search%");
-                  })
-                  ->orWhereHas('company', function($q) use ($search){
-                      $q->where('name','like',"%$search%");
-                  });
+    $sales = Sale::with(['customer', 'company'])
+        ->when($search, function ($query) use ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                    ->orWhere('surat_jalan_number', 'like', "%{$search}%")
+                    ->orWhere('po_number', 'like', "%{$search}%")
+                    ->orWhereHas('customer', function ($customer) use ($search) {
+                        $customer->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('company', function ($company) use ($search) {
+                        $company->where('name', 'like', "%{$search}%");
+                    });
+            });
         })
-        ->latest()
+
+        ->when($status, function ($query) use ($status) {
+
+            if ($status === 'overdue') {
+                $query->where('status', '!=', 'paid')
+                    ->whereNotNull('due_date')
+                    ->whereDate('due_date', '<', now()->toDateString());
+            }
+
+            elseif ($status === 'unpaid') {
+                $query->where('status', 'unpaid')
+                    ->where(function ($q) {
+                        $q->whereNull('due_date')
+                          ->orWhereDate('due_date', '>=', now()->toDateString());
+                    });
+            }
+
+            elseif ($status === 'partial') {
+                $query->where('status', 'partial')
+                    ->where(function ($q) {
+                        $q->whereNull('due_date')
+                          ->orWhereDate('due_date', '>=', now()->toDateString());
+                    });
+            }
+
+            elseif ($status === 'paid') {
+                $query->where('status', 'paid');
+            }
+
+        })
+
+        ->when($dateFrom, function ($query) use ($dateFrom) {
+            $query->whereDate('date', '>=', $dateFrom);
+        })
+
+        ->when($dateTo, function ($query) use ($dateTo) {
+            $query->whereDate('date', '<=', $dateTo);
+        })
+
+        ->latest('date')
         ->paginate($perPage)
         ->withQueryString();
 
+    foreach ($sales as $sale) {
+        if (
+            $sale->status != 'paid' &&
+            $sale->due_date &&
+            \Carbon\Carbon::parse($sale->due_date)->isPast()
+        ) {
+            $sale->status = 'overdue';
+        }
+    }
+
+    return view('sales.index', compact(
+        'sales',
+        'search',
+        'status',
+        'dateFrom',
+        'dateTo',
+        'perPage'
+    ));
+}
     /*
     |--------------------------------------------------------------------------
     | HANDLE STATUS OVERDUE (TANPA SAVE KE DB)
     |--------------------------------------------------------------------------
     */
-
-    foreach($sales as $sale){
-
-        if(
-            $sale->status != 'paid' &&
-            $sale->due_date &&
-            \Carbon\Carbon::parse($sale->due_date)->isPast()
-        ){
-            $sale->status = 'overdue';
-        }
-
-    }
-
-    return view('sales.index', compact('sales','search','perPage'));
-}
-
 
 /*
 =====================================
@@ -96,23 +145,21 @@ public function store(Request $request)
 $request->validate([
 'company_id'=>'required',
 'customer_id'=>'required',
+'ongkir' => 'nullable|numeric|min:0',
 'date'=>'required'
 ]);
-
 
 $company = Company::find($request->company_id);
 
 $invoiceNumber = $this->generateInvoiceNumber();
-
 $suratJalanNumber = $this->generateSuratJalan($company->code);
 
-
+$subtotalBarang = 0;
 /*
 CREATE SALE
 */
 
 $sale = Sale::create([
-
 'company_id'=>$request->company_id,
 'customer_id'=>$request->customer_id,
 'invoice_number'=>$invoiceNumber,
@@ -121,8 +168,8 @@ $sale = Sale::create([
 'date'=>$request->date,
 'due_date'=>$request->due_date,
 'total'=>$request->total,
+'ongkir' => $request->ongkir ?? 0,
 'status'=>'unpaid'
-
 ]);
 
 
@@ -130,29 +177,30 @@ $sale = Sale::create([
 SIMPAN ITEM
 */
 
-foreach($request->product_id as $key=>$product){
+foreach($request->product_id as $key => $product){
 
-$qty = $request->qty[$key];
+    if(!$product){
+        continue;
+    }
 
-SalesItem::create([
+    $qty = $this->parseNumber($request->qty[$key] ?? 0);
+    $price = $this->parseNumber($request->price[$key] ?? 0);
 
-'sale_id'=>$sale->id,
-'product_id'=>$product,
-'price'=>$request->price[$key],
-'qty'=>$qty,
-'subtotal'=>$request->subtotal[$key]
+    $subtotal = $qty * $price;
 
-]);
+    SalesItem::create([
+        'sale_id' => $sale->id,
+        'product_id' => $product,
+        'price' => $price,
+        'qty' => $qty,
+        'subtotal' => $subtotal
+    ]);
 
-$productModel = Product::find($product);
-
-$productModel->save();
-
+    $subtotalBarang += $subtotal;
 }
 
-
 /*
-GENERATE PDF INVOICE
+GENERATE PDF
 */
 
 $sale = Sale::with('customer','company','items.product')->find($sale->id);
@@ -164,8 +212,18 @@ $filename = 'invoice-'.$sale->invoice_number.'.pdf';
 Storage::disk('public')->put('invoices/'.$filename, $pdf->output());
 
 $sale->pdf_path = 'storage/invoices/'.$filename;
-
 $sale->save();
+
+
+/*
+=====================================
+KIRIM WA OTOMATIS (FIX)
+=====================================
+*/
+
+$sale = Sale::with('customer')->find($sale->id);
+
+$this->sendWhatsappNotification($sale);
 
 
 return redirect()->route('sales.index')
@@ -332,7 +390,72 @@ return $pdf->stream('surat-jalan-'.$filename.'.pdf');
 
 }
 
+public function edit($id)
+{
+    $sale = Sale::with('items.product')->findOrFail($id);
 
+    if($sale->status == 'paid'){
+        return redirect()->back()->with('error','Invoice sudah lunas, tidak bisa diedit');
+    }
+
+    $products = Product::all();
+
+    return view('sales.edit', compact('sale','products'));
+}
+
+public function update(Request $request, $id)
+{
+    $sale = Sale::findOrFail($id);
+
+    if ($sale->status == 'paid') {
+        return back()->with('error', 'Invoice sudah lunas');
+    }
+
+    $request->validate([
+        'ongkir' => 'nullable|numeric|min:0',
+        'product_id' => 'required|array',
+        'qty' => 'required|array',
+        'price' => 'required|array',
+    ]);
+
+    SalesItem::where('sale_id', $sale->id)->delete();
+
+    $subtotalBarang = 0;
+
+    foreach($request->product_id as $i => $product){
+
+    if(!$product){
+        continue;
+    }
+
+    $qty = $this->parseNumber($request->qty[$i] ?? 0);
+    $price = $this->parseNumber($request->price[$i] ?? 0);
+
+    $subtotal = $qty * $price;
+
+    SalesItem::create([
+        'sale_id' => $sale->id,
+        'product_id' => $product,
+        'qty' => $qty,
+        'price' => $price,
+        'subtotal' => $subtotal
+    ]);
+
+    $subtotalBarang += $subtotal;
+}
+
+    $ongkir = $request->ongkir ?? 0;
+
+    $grandTotal = $subtotalBarang + $ongkir;
+
+    $sale->update([
+        'total' => $grandTotal,
+        'ongkir' => $ongkir
+    ]);
+
+    return redirect()->route('sales.detail', $sale->id)
+        ->with('success', 'Invoice berhasil diupdate');
+}
 /*
 =====================================
 KIRIM WHATSAPP
@@ -344,61 +467,12 @@ public function sendWhatsapp($id)
 
 $sale = Sale::with('customer')->findOrFail($id);
 
-
-/*
-NOMOR OWNER
-*/
-
-$phone = env('OWNER_PHONE');
-
-$phone = preg_replace('/[^0-9]/','',$phone);
-
-if(substr($phone,0,1) == "0"){
-$phone = "62".substr($phone,1);
-}
-
-
-/*
-LINK PUBLIC INVOICE
-*/
-
-$invoiceLink = url('/invoice/'.$sale->id);
-
-
-/*
-PESAN WA
-*/
-
-$message = "
-📄 INVOICE BARU
-
-Invoice : {$sale->invoice_number}
-Customer : {$sale->customer->name}
-Total : Rp ".number_format($sale->total)."
-Status : ".strtoupper($sale->status)."
-
-Klik link berikut untuk melihat invoice:
-$invoiceLink
-";
-
-
-/*
-KIRIM WA
-*/
-
-Http::withHeaders([
-'Authorization' => env('FONNTE_TOKEN')
-])->post('https://api.fonnte.com/send',[
-
-'target'=>$phone,
-'message'=>$message
-
-]);
-
+$this->sendWhatsappNotification($sale);
 
 return back()->with('success','Notifikasi invoice berhasil dikirim ke WhatsApp');
 
 }
+
 
 /*
 =====================================
@@ -428,4 +502,69 @@ return view('public.invoice',compact(
 
 }
 
+private function parseNumber($value)
+{
+    if ($value === null || $value === '') {
+        return 0;
+    }
+
+    $value = trim((string) $value);
+
+    // Jika pakai koma desimal: 1,5 atau 60.000,50
+    if (str_contains($value, ',')) {
+        $value = str_replace('.', '', $value);   // hapus titik ribuan
+        $value = str_replace(',', '.', $value);  // koma jadi desimal
+    }
+
+    // Jika tidak ada koma, biarkan titik sebagai desimal: 60000.00
+    return (float) $value;
+}
+
+private function sendWhatsappNotification($sale)
+{
+    // ✅ ambil nomor OWNER dari .env
+    $phone = env('OWNER_PHONE');
+
+    if(!$phone) return;
+
+    // format nomor
+    $phone = preg_replace('/[^0-9]/','',$phone);
+
+    if(substr($phone,0,1) == "0"){
+        $phone = "62".substr($phone,1);
+    }
+
+    // link invoice
+    $invoiceLink = url('/invoice/'.$sale->id);
+
+    // format tanggal
+    $dueDate = $sale->due_date 
+    ? \Carbon\Carbon::parse($sale->due_date)->format('d M Y')
+    : '-';
+
+    // pesan WA (lebih profesional)
+    $message = "
+📊 *NOTIF INVOICE BARU*
+
+Invoice : {$sale->invoice_number}
+Customer : {$sale->customer->name}
+Total : Rp ".number_format($sale->total)."
+Ongkir : Rp ".number_format($sale->ongkir ?? 0)."
+Jatuh Tempo : {$dueDate}
+Status : ".strtoupper($sale->status)."
+
+🔗 Lihat Invoice:
+$invoiceLink
+
+Invoice System
+";
+
+    // kirim WA ke OWNER
+    Http::withHeaders([
+        'Authorization' => env('FONNTE_TOKEN')
+    ])->post('https://api.fonnte.com/send',[
+        'target'=>$phone,
+        'message'=>$message
+    ]);
+}
 }

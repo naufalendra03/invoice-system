@@ -40,7 +40,21 @@ Buat Invoice
 
 <div>
 <label class="block mb-1">Jatuh Tempo</label>
-<input type="date" name="due_date" class="border p-2 w-full rounded">
+
+<!-- INPUT DATE -->
+<input type="date" id="due_date" name="due_date" class="border p-2 w-full rounded mb-2">
+
+<!-- QUICK SELECT -->
+<div class="flex flex-wrap gap-2">
+
+<button type="button" class="due-btn bg-gray-200 px-2 py-1 rounded" data-day="7">7 Hari</button>
+<button type="button" class="due-btn bg-gray-200 px-2 py-1 rounded" data-day="14">14 Hari</button>
+<button type="button" class="due-btn bg-gray-200 px-2 py-1 rounded" data-day="21">21 Hari</button>
+<button type="button" class="due-btn bg-gray-200 px-2 py-1 rounded" data-day="30">30 hari</button>
+<button type="button" class="due-btn bg-gray-200 px-2 py-1 rounded" data-day="45">45 Hari</button>
+<button type="button" class="due-btn bg-gray-200 px-2 py-1 rounded" data-day="60">60 Hari</button>
+
+</div>
 </div>
 
 <div>
@@ -83,7 +97,12 @@ Buat Invoice
 </td>
 
 <td>
-<input type="number" name="qty[]" class="qty border p-2 w-full rounded" value="1">
+<input type="text"
+name="qty[]"
+class="qty border p-2 w-full rounded"
+value="1"
+inputmode="decimal"
+placeholder="Contoh: 1,5">
 </td>
 
 <td>
@@ -104,6 +123,20 @@ Buat Invoice
 class="bg-green-600 text-white px-4 py-2 mt-4 rounded">
 + Tambah Barang
 </button>
+
+<!-- ONGKIR -->
+<div class="mt-6 max-w-xs">
+<label class="block mb-1 font-semibold">Ongkir</label>
+<input type="number"
+name="ongkir"
+value="0"
+min="0"
+class="border p-2 w-full rounded"
+placeholder="Masukkan ongkir">
+<p class="text-sm text-gray-500 mt-1">
+Ongkir hanya untuk laporan Excel, tidak tercetak di invoice.
+</p>
+</div>
 
 <!-- TOTAL -->
 <div class="mt-6 text-right">
@@ -127,91 +160,239 @@ Simpan Invoice
 <!-- ================= JS ================= -->
 <script>
 
-// FORMAT RUPIAH
-function formatRupiah(angka) {
-    return angka.toLocaleString('id-ID');
-}
+// ==============================
+// HANDLE QUICK DUE DATE
+// ==============================
+document.querySelectorAll(".due-btn").forEach(btn => {
 
-// HITUNG TOTAL
-function calculateTotal() {
-    let total = 0;
+    btn.addEventListener("click", function(){
 
-    document.querySelectorAll(".subtotal").forEach(el => {
-        total += parseFloat(el.value) || 0;
+        let days = parseInt(this.getAttribute("data-day"));
+
+        let invoiceDateInput = document.querySelector('input[name="date"]');
+        let dueDateInput = document.getElementById("due_date");
+
+        if(!invoiceDateInput.value){
+            alert("Pilih tanggal invoice dulu!");
+            return;
+        }
+
+        let invoiceDate = new Date(invoiceDateInput.value);
+
+        invoiceDate.setDate(invoiceDate.getDate() + days);
+
+        let year = invoiceDate.getFullYear();
+        let month = String(invoiceDate.getMonth() + 1).padStart(2, '0');
+        let day = String(invoiceDate.getDate()).padStart(2, '0');
+
+        dueDateInput.value = `${year}-${month}-${day}`;
+
+        document.querySelectorAll(".due-btn").forEach(b => {
+            b.classList.remove("bg-blue-500","text-white");
+        });
+
+        this.classList.add("bg-blue-500","text-white");
+
     });
 
-    document.getElementById("grandTotal").innerText = formatRupiah(total);
-    document.getElementById("totalInput").value = total;
+});
+
+
+// ==============================
+// FORMAT RUPIAH
+// ==============================
+function formatRupiah(angka) {
+
+    return Number(angka).toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 3
+    });
+
 }
 
+
+// ==============================
+// SUPPORT ANGKA KOMA / DESIMAL
+// ==============================
+function parseNumber(value) {
+    if (!value) return 0;
+
+    value = String(value).trim();
+
+    if (value.includes(',')) {
+        value = value.replace(/\./g, '');
+        value = value.replace(',', '.');
+    }
+
+    return parseFloat(value) || 0;
+}
+
+
+// ==============================
+// HITUNG TOTAL
+// ==============================
+function calculateTotal() {
+
+    let totalBarang = 0;
+
+    document.querySelectorAll(".subtotal").forEach(el => {
+
+        totalBarang += parseNumber(el.value);
+
+    });
+
+    let ongkirInput = document.querySelector('input[name="ongkir"]');
+
+    let ongkir = ongkirInput
+        ? parseNumber(ongkirInput.value)
+        : 0;
+
+    let grandTotal = totalBarang + ongkir;
+
+    document.getElementById("grandTotal").innerText =
+        formatRupiah(grandTotal);
+
+    document.getElementById("totalInput").value =
+        grandTotal;
+
+}
+
+
+// ==============================
 // HITUNG SUBTOTAL
+// ==============================
 function hitungSubtotal(row) {
-    let price = parseFloat(row.querySelector(".price").value) || 0;
-    let qty = parseFloat(row.querySelector(".qty").value) || 0;
+
+    let price = parseNumber(
+        row.querySelector(".price").value
+    );
+
+    let qty = parseNumber(
+        row.querySelector(".qty").value
+    );
 
     let subtotal = price * qty;
 
-    row.querySelector(".subtotal").value = subtotal;
+    row.querySelector(".subtotal").value =
+        subtotal;
 
     calculateTotal();
+
 }
 
+
+// ==============================
 // PILIH PRODUK
+// ==============================
 document.addEventListener("change", function(e) {
 
     if (e.target.classList.contains("product")) {
 
         let row = e.target.closest("tr");
+
         let selected = e.target.selectedOptions[0];
 
-        let price = selected.getAttribute("data-price") || 0;
+        let price =
+            selected.getAttribute("data-price") || 0;
 
         row.querySelector(".price").value = price;
 
-        // 🔥 FIX UTAMA
         hitungSubtotal(row);
     }
 
 });
 
-// INPUT QTY / PRICE
+
+// ==============================
+// INPUT QTY / PRICE / ONGKIR
+// ==============================
 document.addEventListener("input", function(e) {
 
-    if (e.target.classList.contains("qty") || e.target.classList.contains("price")) {
+    if (
+        e.target.classList.contains("qty") ||
+        e.target.classList.contains("price")
+    ) {
 
         let row = e.target.closest("tr");
+
         hitungSubtotal(row);
+
+    }
+
+    if (e.target.name === "ongkir") {
+
+        calculateTotal();
+
     }
 
 });
 
+
+// ==============================
 // TAMBAH ROW
-document.getElementById("addRow").addEventListener("click", function() {
+// ==============================
+document.getElementById("addRow")
+.addEventListener("click", function() {
 
-    let table = document.querySelector("#invoiceTable tbody");
-    let row = table.rows[0].cloneNode(true);
+    let table =
+        document.querySelector("#invoiceTable tbody");
 
-    row.querySelectorAll("input").forEach(input => input.value = "");
-    row.querySelector(".qty").value = 1;
+    let row =
+        table.rows[0].cloneNode(true);
+
+    row.querySelectorAll("input")
+        .forEach(input => input.value = "");
+
+    row.querySelector(".qty").value = "1";
+
+    let product = row.querySelector(".product");
+
+    if (product) {
+
+        product.selectedIndex = 0;
+
+    }
+
+    row.querySelector(".price").value = "";
+    row.querySelector(".subtotal").value = "";
 
     table.appendChild(row);
+
+    calculateTotal();
+
 });
 
+
+// ==============================
 // HAPUS ROW
+// ==============================
 document.addEventListener("click", function(e) {
 
     if (e.target.classList.contains("remove")) {
 
         let row = e.target.closest("tr");
 
-        if (document.querySelectorAll("#invoiceTable tbody tr").length > 1) {
+        if (
+            document.querySelectorAll(
+                "#invoiceTable tbody tr"
+            ).length > 1
+        ) {
+
             row.remove();
+
         }
 
         calculateTotal();
+
     }
 
 });
+
+
+// ==============================
+// HITUNG AWAL
+// ==============================
+calculateTotal();
 
 </script>
 
